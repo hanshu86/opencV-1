@@ -10,10 +10,10 @@ using namespace cv;
 
 #define EXIT_KEY    27//escape character
 
-int maxScaleUp = 100;
-int scaleFactor = 1;
-int scaleType = 0;
-int maxType = 100;
+int softnessFactorUp = 100;
+int softnessFactor = 1;
+int toleranceFactor = 58;
+int toleranceFactorUp = 100;
 int colorCast = 1;
 int maxColorCast = 100;
 Mat frame;
@@ -21,8 +21,8 @@ Mat frame;
 string windowNameOG = "Original Video";
 
 string windowName = "Slider Window";
-string trackbarValue = "Softness";
-string trackbarType = "Tolerance";
+string trackbarSoftness = "Softness";
+string trackbarTolerance = "Tolerance";
 string trackbarClrCast = "Color Cast";
 
 // Points to store the center of the circle and a point on the circumference
@@ -30,10 +30,16 @@ Point left_top, right_bottom, transient_right_bottom;
 bool mouse_has_clicked = false;
 bool patch_selected = false;
 Scalar mean_background_color = 0;
+Scalar upper_background_color = Scalar(0, 100, 0);//default
+Scalar lower_background_color = Scalar(120, 255, 100);//default
 
 //callbacks
 void backgroundRemovalImage(int, void*);
 void patchSelector(int action, int x, int y, int flags, void *userdata);
+
+int bound(int n, int lower, int upper) {
+  return std::max(lower, std::min(n, upper));
+}
 
 int main(){
 
@@ -59,18 +65,17 @@ int main(){
         // Create a window to display results
 //        namedWindow(windowName, WINDOW_NORMAL);
 
-        createTrackbar(trackbarValue, windowNameOG, &scaleFactor, maxScaleUp, backgroundRemovalImage);
-        createTrackbar(trackbarType, windowNameOG, &scaleType, maxType, backgroundRemovalImage);
+        createTrackbar(trackbarSoftness, windowNameOG, &softnessFactor, softnessFactorUp, backgroundRemovalImage);
+        createTrackbar(trackbarTolerance, windowNameOG, &toleranceFactor, toleranceFactorUp, backgroundRemovalImage);
         createTrackbar(trackbarClrCast, windowNameOG, &colorCast, maxColorCast, backgroundRemovalImage);
         
-
-        // Display the resulting frame
-        imshow( windowNameOG, frame );
     
         if(patch_selected == false)
         {
             putText(frame,"Select Patch" ,Point(10,30), FONT_HERSHEY_SIMPLEX, 0.7,Scalar(255,0,0), 12 );
             setMouseCallback(windowNameOG, patchSelector);
+            // Display the resulting frame
+            imshow( windowNameOG, frame );
         }
         else
         {
@@ -81,6 +86,11 @@ int main(){
         {
             waitKey(250);
         }
+        
+        //create mask based on upper and lower limit
+        Mat mask;
+        inRange(frame, lower_background_color, upper_background_color, mask);
+        imshow( windowNameOG, mask );
         
         // Press ESC on keyboard to exit
         int c = waitKey(25) & 0xFF;
@@ -101,26 +111,21 @@ int main(){
 
 // Callback functions
 void backgroundRemovalImage(int, void*){
-    double scaleFactorDouble;
+    cout << "Tolerance:" <<  toleranceFactor << endl;
+    cout << "Softness:" << softnessFactor << endl;
+    cout << "Color Cast:" << colorCast << endl;
+    
+    upper_background_color = Scalar(bound((mean_background_color.val[0] + 0), 0, 255),
+                                    bound((mean_background_color.val[1] + toleranceFactor), 0, 255),
+                                    bound((mean_background_color.val[2] + 0), 0, 255));
+    
+    lower_background_color = Scalar(bound((mean_background_color.val[0] - 0), 0, 255),
+                                    bound((mean_background_color.val[1] - toleranceFactor), 0, 255),
+                                    bound((mean_background_color.val[2] - 0), 0, 255));
 
-    if(scaleType == 0) {
-        scaleFactorDouble = 1 + scaleFactor/100.0;
-    }
-    else if(scaleType == 1){
-        scaleFactorDouble = 1 - scaleFactor/100.0;
-    }
-    else
-    {
-        cout << "Wrong type" << endl;
-        return;
-    }
-    if (scaleFactorDouble == 0){
-        scaleFactorDouble = 1;
-    }
-     cout << "===============" << endl;
-     cout << "scaleFactor:" << scaleFactor << endl;
-     cout << "scaleFactorDouble:" << scaleFactorDouble << endl;
-     cout << "===============" << endl;
+    cout << "Mean of background color: " << mean_background_color << endl;
+    cout << "Upper Limit background color: " << upper_background_color << endl;
+    cout << "Lower Limit background color: " << lower_background_color << endl;
 }
 
 // function which will be called on mouse input
@@ -152,7 +157,18 @@ void patchSelector(int action, int x, int y, int flags, void *userdata)
         mouse_has_clicked = false;
         patch_selected = true;
         
+        //upper limit of background color
+        upper_background_color = Scalar(120,
+                                        255,
+                                        100);
+        
+        lower_background_color = Scalar(0,
+                                        mean_background_color.val[1] - toleranceFactor,
+                                        0);
+
         cout << "Mean of background color: " << mean_background_color << endl;
+        cout << "Upper Limit background color: " << upper_background_color << endl;
+        cout << "Lower Limit background color: " << lower_background_color << endl;
         
     }
     else if(( action == EVENT_MOUSEMOVE ) && (mouse_has_clicked))
