@@ -45,6 +45,9 @@ int main(){
 
     VideoCapture cap("greenscreen-demo.mp4");
     
+    Mat newBackgroundImage = imread("new-bckImage.jpg");
+    Mat backgroundImageCopy = newBackgroundImage.clone();
+    
     // Check if camera opened successfully and read a frame from the object cap
     if(!cap.isOpened()){
         cout << "Error opening video stream or file" << endl;
@@ -90,8 +93,21 @@ int main(){
         //create mask based on upper and lower limit
         Mat mask;
         inRange(frame, lower_background_color, upper_background_color, mask);
-        imshow( windowNameOG, mask );
+        Mat bckMaskNOT;
+        bitwise_not(mask, bckMaskNOT);
+        Mat noBackImage, bckMaskNOT3, mask3;
+//        cout << bckMaskNOT.type() << endl;
+//        cout << frame.type() << endl;
+        cvtColor( bckMaskNOT, bckMaskNOT3, COLOR_GRAY2BGR );
+        cvtColor( mask, mask3, COLOR_GRAY2BGR );
         
+        bitwise_and(bckMaskNOT3, frame, noBackImage);
+        backgroundImageCopy.copyTo(newBackgroundImage);
+        resize(newBackgroundImage, newBackgroundImage, frame.size(), 0);
+        bitwise_and(bckMaskNOT3, frame, noBackImage);
+        bitwise_and(mask3, newBackgroundImage, newBackgroundImage);
+        bitwise_or(newBackgroundImage, noBackImage, noBackImage);
+        imshow( windowNameOG, noBackImage );
         // Press ESC on keyboard to exit
         int c = waitKey(25) & 0xFF;
         if(c == EXIT_KEY)
