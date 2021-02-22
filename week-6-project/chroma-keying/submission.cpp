@@ -129,7 +129,7 @@ int main(){
         bitwise_and(bckMaskNOT3, frame, noBackImage);
         bitwise_and(mask3, newBackgroundImage, newBackgroundImage);
         bitwise_or(newBackgroundImage, noBackImage, noBackImage);
-        imshow( windowNameOG, mask );
+        imshow( windowNameOG, noBackImage );
         // Press ESC on keyboard to exit
         int c = waitKey(25) & 0xFF;
         if(c == EXIT_KEY)
