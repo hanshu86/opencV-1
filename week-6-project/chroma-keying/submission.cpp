@@ -36,7 +36,7 @@ Scalar lower_background_color = Scalar(40, 40, 40);//default in HSV color space
 //callbacks
 void backgroundRemovalImage(int, void*);
 void patchSelector(int action, int x, int y, int flags, void *userdata);
-
+Mat defringe(Mat image);
 
 int getNewValue(int value, int percentage, bool up) {
     double newVal = 0;
@@ -46,7 +46,7 @@ int getNewValue(int value, int percentage, bool up) {
     else {
         newVal = (double)(value) - ((double)value * (double)percentage/(double)100);
     }
-    cout << "for value with percentage" << value << " " << percentage << " " << newVal <<  " " << up  << endl;
+    // cout << "for value with percentage" << value << " " << percentage << " " << newVal <<  " " << up  << endl;
     
     return (int)newVal;
 }
@@ -113,7 +113,8 @@ int main(){
         
         GaussianBlur(mask, mask, Size( 3, 3 ), softnessFactor, 0 );
         Mat kernel_dialation = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
-        erode(mask, mask, kernel_dialation, Point(-1,-1), 6);
+        // erode(mask, mask, kernel_dialation, Point(-1,-1), 6);
+        dilate(mask, mask, kernel_dialation, Point(-1,-1), 3);
         
         Mat bckMaskNOT;
         bitwise_not(mask, bckMaskNOT);
@@ -129,6 +130,7 @@ int main(){
         bitwise_and(bckMaskNOT3, frame, noBackImage);
         bitwise_and(mask3, newBackgroundImage, newBackgroundImage);
         bitwise_or(newBackgroundImage, noBackImage, noBackImage);
+        noBackImage = defringe(noBackImage);
         imshow( windowNameOG, noBackImage );
         // Press ESC on keyboard to exit
         int c = waitKey(25) & 0xFF;
@@ -222,3 +224,123 @@ void patchSelector(int action, int x, int y, int flags, void *userdata)
     }
 
 }
+
+string type2str(int type) {
+  string r;
+
+  uchar depth = type & CV_MAT_DEPTH_MASK;
+  uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+  switch ( depth ) {
+    case CV_8U:  r = "8U"; break;
+    case CV_8S:  r = "8S"; break;
+    case CV_16U: r = "16U"; break;
+    case CV_16S: r = "16S"; break;
+    case CV_32S: r = "32S"; break;
+    case CV_32F: r = "32F"; break;
+    case CV_64F: r = "64F"; break;
+    default:     r = "User"; break;
+  }
+
+  r += "C";
+  r += (chans+'0');
+
+  return r;
+}
+
+float max_custom(float a, float b, float c) 
+{
+   return ((a > b)? (a > c ? a : c) : (b > c ? b : c));
+}
+
+float min_custom(float a, float b, float c) 
+{
+   return ((a < b)? (a < c ? a : c) : (b < c ? b : c));
+}
+
+void rgb_to_hsv(int red, int green, int blue, uchar *hue, uchar *sat, uchar *value) 
+{
+    // R, G, B values are divided by 255
+    // to change the range from 0..255 to 0..1:
+    float h, s, v;
+    float r, g, b;
+    r = ((float)red/255.0f);
+    g = ((float)green/255.0f);
+    b = ((float)blue/255.0f);
+//     r = red;
+//     g = green;
+//     b = blue;
+    float cmax = max_custom(r, g, b); // maximum of r, g, b
+    float cmin = min_custom(r, g, b); // minimum of r, g, b
+    float diff = cmax-cmin; // diff of cmax and cmin.
+    
+    if (cmax == r)
+        //60(G−B)/(V−min(R,G,B))
+//         h = ((60.0f*(g - b))/(cmax - cmin));
+        h = 60 * fmod(((g - b)/diff) , 6);
+    else if (cmax == g)
+        //120+60(B−R)/(V−min(R,G,B))
+//         h = ((120.0f + (60.0f* (b - r)))/(cmax - cmin)) ;
+        h = 60 * (((b - r)/diff) + 2);
+    else if (cmax == b)
+        //240+60(R−G)/(V−min(R,G,B))
+//         h = ((240.0f + (60.0f* (r - g)))/(cmax - cmin)) ;
+        h = 60 * (((r - g)/diff) + 4);
+    
+    if (h < 0.0f) h = (h + 360.0f);
+    if (h > 360.0f) h = h - (int)((int)h/(int)360)*360;
+//     if(h > 360) h = 360;
+    
+    // if cmax equal zero
+      if (cmax == 0)
+         s = 0.0f;
+      else
+         s = (diff / cmax);
+    // compute v
+    v = cmax ;
+    
+    // cout << "h=" << h << "s=" << s << "v=" << v <<endl ;
+    *hue = (uchar)((h/2.0f) + 0.5);
+    *sat = (uchar)((s*255.0f) + 0.5);
+    *value = (uchar)((v*255.0f) + 0.5);
+}
+
+Mat defringe(Mat image)
+{
+    Mat retImage = image.clone();
+
+    // cvtColor(image, retImage, COLOR_BGR2HSV);
+#if 0
+    for(int y=0; y<image.cols; y++){
+        for(int x=0; x<image.rows; x++){
+            Vec3b intensity = image.at<Vec3b>(x, y);
+            Vec3b hsv_intensity = retImage.at<Vec3b>(x, y);
+            int b = intensity.val[0];
+            int g = intensity.val[1];
+            int r = intensity.val[2];
+            // cout << "here" << endl;
+            Vec3b bgr;
+            bgr[0] = b;
+            bgr[1] = g;
+            bgr[2] = r;
+            uchar h,s,v;
+            h = hsv_intensity.val[0];
+            s = hsv_intensity.val[1];
+            v = hsv_intensity.val[2];
+            // rgb_to_hsv(r, g, b, &h, &s, &v);
+            // cout << "I am here" << endl;
+            if(h >= 60 && h <= 130 && s >= 0.15 && v > 0.15){
+                if((r*b) !=0 && (g*g) / (r*b) >= 1.5){
+                    retImage.at<Vec3b>(x,y) = Vec3b((int)(b*1.4),(int)g,(int)(r*1.4));
+                } else{
+                    retImage.at<Vec3b>(x,y) = Vec3b((int)(b*1.2),(int)g,(int)(r*1.2));
+                }
+            }
+        }
+    }
+
+#endif
+    // cout << "Image Type is: " << type2str(image.type()) << endl;
+    return retImage;
+}
+
