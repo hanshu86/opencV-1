@@ -14,7 +14,7 @@ int softnessFactorUp = 100;
 int softnessFactor = 0;
 int toleranceFactor = 51;
 int toleranceFactorUp = 100;
-int colorCast = 1;
+int colorCast = 0;
 int maxColorCast = 100;
 Mat frame;
 
@@ -261,6 +261,7 @@ Mat defringe(Mat image, Mat Mask)
     blur( mask_gray, detected_edges, Size(3,3) );
     Canny( detected_edges, detected_edges, lowThreshold, lowThreshold*ratio, kernel_size );
 
+    //convert to HSV so that we can modify green pixel on edge
     cvtColor(image, retImage, COLOR_BGR2HSV);
 
     for(int y=0; y<detected_edges.cols; y++){
@@ -276,12 +277,12 @@ Mat defringe(Mat image, Mat Mask)
             bgr[0] = b;
             bgr[1] = g;
             bgr[2] = r;
-            uchar h,s,v;
+            int h,s,v;
             h = hsv_intensity.val[0];
             s = hsv_intensity.val[1];
             v = hsv_intensity.val[2];
-
-            if(h >= 40 && h <= 70 && s >= 0.15 && v > 0.15){
+            // cout << "h:" << (float)hsv_intensity.val[0] << "s:" << (float)hsv_intensity.val[1] << "v:" << (float)hsv_intensity.val[2] << endl;
+            if(h >= (40 + colorCast) && h <= (70 + colorCast) && s >= (40 + colorCast) && (v > 40 + colorCast)){
                 if((r*b) !=0 && (g*g) / (r*b) >= 1.5){
                     retImage.at<Vec3b>(x,y) = Vec3b((int)(b*1.4),(int)g,(int)(r*1.4));
                 } else{
@@ -291,6 +292,7 @@ Mat defringe(Mat image, Mat Mask)
         }
     }
 
+    //convert back to BGR
     cvtColor(retImage, retImage, COLOR_HSV2BGR);
 
     return retImage;
